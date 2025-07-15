@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -9,16 +8,15 @@
 </head>
 <body>
     <div class="container">
-        <h1>Administration - Gestion des Taux de Change</h1>
+        <h4 style="margin-bottom: 15px;">Administration - Gestion des Taux de Change</h4>
         
         <div class="admin-section">
-            <h2>Consulter les Taux Actuels</h2>
             <button onclick="loadCurrentRates()">Charger les Taux</button>
             <div id="currentRates" class="rates-display"></div>
         </div>
         
         <div class="admin-section">
-            <h2>Mettre à Jour un Taux</h2>
+            <h4 style="margin-bottom: 10px;">Mettre à Jour un Taux</h4>
             <div class="form-group">
                 <label for="currencyCode">Code de la Devise:</label>
                 <select id="currencyCode" required>
@@ -45,22 +43,104 @@
 
     <script>
         function loadCurrentRates() {
-            // Simuler le chargement des taux actuels
-            const rates = {
-                'EUR': 1.0,
-                'USD': 1.18,
-                'GBP': 0.85,
-                'JPY': 130.0,
-                'MAD': 10.5,
-                'CAD': 1.45
-            };
+            // Appel SOAP pour récupérer les devises disponibles
+            const soapRequest = `<?xml version="1.0" encoding="UTF-8"?>
+                <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ser="http://service.converter.com">
+                    <soapenv:Header/>
+                    <soapenv:Body>
+                        <ser:getAvailableCurrencies>
+                        </ser:getAvailableCurrencies>
+                    </soapenv:Body>
+                </soapenv:Envelope>`;
             
+            fetch('/CurrencyConverterWS/services/CurrencyConverterService', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'text/xml; charset=utf-8',
+                    'SOAPAction': 'getAvailableCurrencies'
+                },
+                body: soapRequest
+            })
+            .then(response => response.text())
+            .then(data => {
+                const parser = new DOMParser();
+                const xmlDoc = parser.parseFromString(data, 'text/xml');
+                const returnElements = xmlDoc.getElementsByTagName('ns:return');
+                
+                if (returnElements.length > 0) {
+                    const currencies = [];
+                    for (let i = 0; i < returnElements.length; i++) {
+                        currencies.push(returnElements[i].textContent);
+                    }
+                    
+                    // Maintenant récupérer les taux pour chaque devise
+                    loadRatesForCurrencies(currencies);
+                } else {
+                    document.getElementById('currentRates').innerHTML = '<p style="color: red;">Erreur lors du chargement des devises</p>';
+                }
+            })
+            .catch(error => {
+                console.error('Erreur:', error);
+                document.getElementById('currentRates').innerHTML = '<p style="color: red;">Erreur de connexion au service</p>';
+            });
+        }
+        
+        function loadRatesForCurrencies(currencies) {
+            const ratePromises = currencies.map(currency => {
+                return new Promise((resolve, reject) => {
+                    const soapRequest = `<?xml version="1.0" encoding="UTF-8"?>
+                        <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ser="http://service.converter.com">
+                            <soapenv:Header/>
+                            <soapenv:Body>
+                                <ser:getExchangeRate>
+                                    <ser:currencyCode>${currency}</ser:currencyCode>
+                                </ser:getExchangeRate>
+                            </soapenv:Body>
+                        </soapenv:Envelope>`;
+                    
+                    fetch('/CurrencyConverterWS/services/CurrencyConverterService', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'text/xml; charset=utf-8',
+                            'SOAPAction': 'getExchangeRate'
+                        },
+                        body: soapRequest
+                    })
+                    .then(response => response.text())
+                    .then(data => {
+                        const parser = new DOMParser();
+                        const xmlDoc = parser.parseFromString(data, 'text/xml');
+                        const result = xmlDoc.getElementsByTagName('ns:return')[0]?.textContent;
+                        
+                        if (result && result !== '-1') {
+                            resolve({ currency: currency, rate: parseFloat(result) });
+                        } else {
+                            reject(new Error(`Erreur pour ${currency}`));
+                        }
+                    })
+                    .catch(error => {
+                        reject(error);
+                    });
+                });
+            });
+            
+            Promise.all(ratePromises)
+                .then(rates => {
+                    displayRates(rates);
+                })
+                .catch(error => {
+                    console.error('Erreur lors du chargement des taux:', error);
+                    document.getElementById('currentRates').innerHTML = '<p style="color: red;">Erreur lors du chargement des taux</p>';
+                });
+        }
+        
+        function displayRates(rates) {
             let html = '<h3>Taux Actuels (base: EUR)</h3><table>';
             html += '<tr><th>Devise</th><th>Taux</th></tr>';
             
-            for (const [currency, rate] of Object.entries(rates)) {
-                html += `<tr><td>${currency}</td><td>${rate}</td></tr>`;
-            }
+            rates.forEach(rate => {
+                html += `<tr><td>${rate.currency}</td><td>${rate.rate}</td></tr>`;
+            });
             
             html += '</table>';
             document.getElementById('currentRates').innerHTML = html;
@@ -105,8 +185,12 @@
                     document.getElementById('updateResult').innerHTML = `
                         <p style="color: green;">Taux mis à jour avec succès!</p>
                     `;
-                    // Recharger les taux actuels
+                    // Recharger les taux actuels automatiquement
                     loadCurrentRates();
+                    
+                    // Réinitialiser le formulaire
+                    document.getElementById('currencyCode').value = '';
+                    document.getElementById('newRate').value = '';
                 } else {
                     document.getElementById('updateResult').innerHTML = `
                         <p style="color: red;">Erreur lors de la mise à jour</p>
@@ -120,6 +204,11 @@
                 `;
             });
         }
+        
+        // Charger les taux au démarrage de la page
+        window.onload = function() {
+            loadCurrentRates();
+        };
     </script>
 </body>
 </html>
