@@ -25,27 +25,28 @@ public class CurrencyDAO {
     
     private void initializeXmlPath() {
         try {
-            // Méthode 1: Chercher dans le classpath
-            URL resourceUrl = getClass().getClassLoader().getResource(XML_FILE);
+            // Méthode 1: Chercher dans le classpath (dossier resources)
+            InputStream resourceStream = getClass().getClassLoader().getResourceAsStream(XML_FILE);
             
-            if (resourceUrl != null) {
-                this.xmlFilePath = resourceUrl.getPath();
-                System.out.println("Fichier XML trouvé dans le classpath: " + xmlFilePath);
+            if (resourceStream != null) {
+                // Copier le fichier du classpath vers un dossier accessible en écriture
+                copyResourceToWorkingDirectory(resourceStream);
+                resourceStream.close();
                 return;
             }
             
-            // Méthode 2: Chercher dans le dossier WEB-INF
-            String webInfPath = getClass().getClassLoader().getResource("").getPath();
-            webInfPath = webInfPath.replace("WEB-INF/classes/", "WEB-INF/");
-            File webInfFile = new File(webInfPath + XML_FILE);
+            // Méthode 2: Chercher dans le dossier de travail de l'application
+            String workingDir = System.getProperty("user.dir");
+            File workingFile = new File(workingDir, XML_FILE);
             
-            if (webInfFile.exists()) {
-                this.xmlFilePath = webInfFile.getAbsolutePath();
-                System.out.println("Fichier XML trouvé dans WEB-INF: " + xmlFilePath);
+            if (workingFile.exists()) {
+                this.xmlFilePath = workingFile.getAbsolutePath();
+                System.out.println("Fichier XML trouvé dans le dossier de travail: " + xmlFilePath);
                 return;
             }
             
             // Méthode 3: Créer le fichier avec des données par défaut
+            this.xmlFilePath = workingFile.getAbsolutePath();
             createDefaultXmlFile();
             
         } catch (Exception e) {
@@ -56,11 +57,38 @@ public class CurrencyDAO {
         }
     }
     
+    private void copyResourceToWorkingDirectory(InputStream resourceStream) {
+        try {
+            // Créer le fichier dans le dossier de travail
+            String workingDir = System.getProperty("user.dir");
+            File targetFile = new File(workingDir, XML_FILE);
+            
+            // Lire le contenu du fichier resource
+            byte[] buffer = new byte[1024];
+            int bytesRead;
+            java.io.FileOutputStream fos = new java.io.FileOutputStream(targetFile);
+            
+            while ((bytesRead = resourceStream.read(buffer)) != -1) {
+                fos.write(buffer, 0, bytesRead);
+            }
+            
+            fos.close();
+            
+            this.xmlFilePath = targetFile.getAbsolutePath();
+            System.out.println("Fichier XML copié depuis resources vers: " + xmlFilePath);
+            
+        } catch (Exception e) {
+            System.err.println("Erreur lors de la copie du fichier resource: " + e.getMessage());
+            e.printStackTrace();
+            createDefaultXmlFile();
+        }
+    }
+    
     private void createDefaultXmlFile() {
         try {
-            // Créer le fichier dans le dossier temp du système
-            String tempDir = System.getProperty("java.io.tmpdir");
-            File xmlFile = new File(tempDir, XML_FILE);
+            // Créer le fichier dans le dossier de travail de l'application
+            String workingDir = System.getProperty("user.dir");
+            File xmlFile = new File(workingDir, XML_FILE);
             
             // Créer le document XML par défaut
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
@@ -83,6 +111,7 @@ public class CurrencyDAO {
             TransformerFactory transformerFactory = TransformerFactory.newInstance();
             Transformer transformer = transformerFactory.newTransformer();
             transformer.setOutputProperty(javax.xml.transform.OutputKeys.INDENT, "yes");
+            transformer.setOutputProperty(javax.xml.transform.OutputKeys.ENCODING, "UTF-8");
             DOMSource source = new DOMSource(document);
             StreamResult result = new StreamResult(xmlFile);
             transformer.transform(source, result);
@@ -119,13 +148,26 @@ public class CurrencyDAO {
         
         if (xmlFilePath == null) {
             System.err.println("Chemin du fichier XML non défini");
-            return getDefaultCurrencies(); // Retourner des devises par défaut
+            return getDefaultCurrencies();
+        }
+        
+        File xmlFile = new File(xmlFilePath);
+        if (!xmlFile.exists()) {
+            System.err.println("Fichier XML n'existe pas: " + xmlFilePath);
+            createDefaultXmlFile();
+            xmlFile = new File(xmlFilePath);
+        }
+        
+        // Vérifier si le fichier est vide
+        if (xmlFile.length() == 0) {
+            System.err.println("Fichier XML vide, recréation...");
+            createDefaultXmlFile();
         }
         
         try {
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
             DocumentBuilder builder = factory.newDocumentBuilder();
-            Document document = builder.parse(new File(xmlFilePath));
+            Document document = builder.parse(xmlFile);
             
             NodeList currencyNodes = document.getElementsByTagName("currency");
             
@@ -148,6 +190,7 @@ public class CurrencyDAO {
             
             // Si aucune devise n'a été trouvée, retourner des devises par défaut
             if (currencies.isEmpty()) {
+                System.err.println("Aucune devise trouvée dans le fichier XML, utilisation des valeurs par défaut");
                 return getDefaultCurrencies();
             }
             
@@ -197,10 +240,16 @@ public class CurrencyDAO {
             return false;
         }
         
+        File xmlFile = new File(xmlFilePath);
+        if (!xmlFile.exists()) {
+            System.err.println("Fichier XML n'existe pas pour la mise à jour: " + xmlFilePath);
+            createDefaultXmlFile();
+        }
+        
         try {
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
             DocumentBuilder builder = factory.newDocumentBuilder();
-            Document document = builder.parse(new File(xmlFilePath));
+            Document document = builder.parse(xmlFile);
             
             NodeList currencyNodes = document.getElementsByTagName("currency");
             boolean updated = false;
@@ -224,8 +273,9 @@ public class CurrencyDAO {
                 TransformerFactory transformerFactory = TransformerFactory.newInstance();
                 Transformer transformer = transformerFactory.newTransformer();
                 transformer.setOutputProperty(javax.xml.transform.OutputKeys.INDENT, "yes");
+                transformer.setOutputProperty(javax.xml.transform.OutputKeys.ENCODING, "UTF-8");
                 DOMSource source = new DOMSource(document);
-                StreamResult result = new StreamResult(new File(xmlFilePath));
+                StreamResult result = new StreamResult(xmlFile);
                 transformer.transform(source, result);
                 
                 System.out.println("Taux mis à jour avec succès pour " + code + ": " + newRate);
