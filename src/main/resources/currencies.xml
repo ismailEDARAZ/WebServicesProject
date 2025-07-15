@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<currencies>
+    <currency>
+        <code>EUR</code>
+        <name>Euro</name>
+        <rate>1.0</rate>
+    </currency>
+    <currency>
+        <code>USD</code>
+        <name>US Dollar</name>
+        <rate>1.18</rate>
+    </currency>
+    <currency>
+        <code>GBP</code>
+        <name>British Pound</name>
+        <rate>0.85</rate>
+    </currency>
+    <currency>
+        <code>JPY</code>
+        <name>Japanese Yen</name>
+        <rate>130.0</rate>
+    </currency>
+    <currency>
+        <code>MAD</code>
+        <name>Moroccan Dirham</name>
+        <rate>10.5</rate>
+    </currency>
+    <currency>
+        <code>CAD</code>
+        <name>Canadian Dollar</name>
+        <rate>1.45</rate>
+    </currency>
+</currencies>

@@ -1,0 +1,125 @@
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Convertisseur de Devises - Administration</title>
+    <link rel="stylesheet" href="../css/styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Administration - Gestion des Taux de Change</h1>
+        
+        <div class="admin-section">
+            <h2>Consulter les Taux Actuels</h2>
+            <button onclick="loadCurrentRates()">Charger les Taux</button>
+            <div id="currentRates" class="rates-display"></div>
+        </div>
+        
+        <div class="admin-section">
+            <h2>Mettre à Jour un Taux</h2>
+            <div class="form-group">
+                <label for="currencyCode">Code de la Devise:</label>
+                <select id="currencyCode" required>
+                    <option value="">Sélectionnez une devise</option>
+                    <option value="EUR">EUR - Euro</option>
+                    <option value="USD">USD - US Dollar</option>
+                    <option value="GBP">GBP - British Pound</option>
+                    <option value="JPY">JPY - Japanese Yen</option>
+                    <option value="MAD">MAD - Moroccan Dirham</option>
+                    <option value="CAD">CAD - Canadian Dollar</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="newRate">Nouveau Taux:</label>
+                <input type="number" id="newRate" step="0.0001" min="0" required>
+            </div>
+            
+            <button onclick="updateRate()">Mettre à Jour</button>
+        </div>
+        
+        <div id="updateResult" class="result"></div>
+    </div>
+
+    <script>
+        function loadCurrentRates() {
+            // Simuler le chargement des taux actuels
+            const rates = {
+                'EUR': 1.0,
+                'USD': 1.18,
+                'GBP': 0.85,
+                'JPY': 130.0,
+                'MAD': 10.5,
+                'CAD': 1.45
+            };
+            
+            let html = '<h3>Taux Actuels (base: EUR)</h3><table>';
+            html += '<tr><th>Devise</th><th>Taux</th></tr>';
+            
+            for (const [currency, rate] of Object.entries(rates)) {
+                html += `<tr><td>${currency}</td><td>${rate}</td></tr>`;
+            }
+            
+            html += '</table>';
+            document.getElementById('currentRates').innerHTML = html;
+        }
+        
+        function updateRate() {
+            const currencyCode = document.getElementById('currencyCode').value;
+            const newRate = document.getElementById('newRate').value;
+            
+            if (!currencyCode || !newRate) {
+                alert('Veuillez remplir tous les champs');
+                return;
+            }
+            
+            // Appel SOAP pour mettre à jour le taux
+            const soapRequest = `<?xml version="1.0" encoding="UTF-8"?>
+                <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ser="http://service.converter.com">
+                    <soapenv:Header/>
+                    <soapenv:Body>
+                        <ser:updateExchangeRate>
+                            <ser:currencyCode>${currencyCode}</ser:currencyCode>
+                            <ser:newRate>${newRate}</ser:newRate>
+                        </ser:updateExchangeRate>
+                    </soapenv:Body>
+                </soapenv:Envelope>`;
+            
+            fetch('/CurrencyConverterWS/services/CurrencyConverterService', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'text/xml; charset=utf-8',
+                    'SOAPAction': 'updateExchangeRate'
+                },
+                body: soapRequest
+            })
+            .then(response => response.text())
+            .then(data => {
+                const parser = new DOMParser();
+                const xmlDoc = parser.parseFromString(data, 'text/xml');
+                const result = xmlDoc.getElementsByTagName('ns:return')[0]?.textContent;
+                
+                if (result === 'true') {
+                    document.getElementById('updateResult').innerHTML = `
+                        <p style="color: green;">Taux mis à jour avec succès!</p>
+                    `;
+                    // Recharger les taux actuels
+                    loadCurrentRates();
+                } else {
+                    document.getElementById('updateResult').innerHTML = `
+                        <p style="color: red;">Erreur lors de la mise à jour</p>
+                    `;
+                }
+            })
+            .catch(error => {
+                console.error('Erreur:', error);
+                document.getElementById('updateResult').innerHTML = `
+                    <p style="color: red;">Erreur de connexion au service</p>
+                `;
+            });
+        }
+    </script>
+</body>
+</html>

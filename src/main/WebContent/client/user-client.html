@@ -1,0 +1,116 @@
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Convertisseur de Devises - Client Utilisateur</title>
+    <link rel="stylesheet" href="../css/styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Convertisseur de Devises</h1>
+        
+        <div class="converter-form">
+            <div class="form-group">
+                <label for="amount">Montant:</label>
+                <input type="number" id="amount" step="0.01" min="0" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="fromCurrency">De:</label>
+                <select id="fromCurrency" required>
+                    <option value="">Sélectionnez une devise</option>
+                    <option value="EUR">EUR - Euro</option>
+                    <option value="USD">USD - US Dollar</option>
+                    <option value="GBP">GBP - British Pound</option>
+                    <option value="JPY">JPY - Japanese Yen</option>
+                    <option value="MAD">MAD - Moroccan Dirham</option>
+                    <option value="CAD">CAD - Canadian Dollar</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="toCurrency">Vers:</label>
+                <select id="toCurrency" required>
+                    <option value="">Sélectionnez une devise</option>
+                    <option value="EUR">EUR - Euro</option>
+                    <option value="USD">USD - US Dollar</option>
+                    <option value="GBP">GBP - British Pound</option>
+                    <option value="JPY">JPY - Japanese Yen</option>
+                    <option value="MAD">MAD - Moroccan Dirham</option>
+                    <option value="CAD">CAD - Canadian Dollar</option>
+                </select>
+            </div>
+            
+            <button type="button" onclick="convertCurrency()">Convertir</button>
+        </div>
+        
+        <div id="result" class="result"></div>
+    </div>
+
+    <script>
+        function convertCurrency() {
+            const amount = document.getElementById('amount').value;
+            const fromCurrency = document.getElementById('fromCurrency').value;
+            const toCurrency = document.getElementById('toCurrency').value;
+            
+            if (!amount || !fromCurrency || !toCurrency) {
+                alert('Veuillez remplir tous les champs');
+                return;
+            }
+            
+            if (fromCurrency === toCurrency) {
+                alert('Les devises source et cible doivent être différentes');
+                return;
+            }
+            
+            // Appel SOAP au service web
+            const soapRequest = `<?xml version="1.0" encoding="UTF-8"?>
+                <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ser="http://service.converter.com">
+                    <soapenv:Header/>
+                    <soapenv:Body>
+                        <ser:convertCurrency>
+                            <ser:amount>${amount}</ser:amount>
+                            <ser:fromCurrency>${fromCurrency}</ser:fromCurrency>
+                            <ser:toCurrency>${toCurrency}</ser:toCurrency>
+                        </ser:convertCurrency>
+                    </soapenv:Body>
+                </soapenv:Envelope>`;
+            
+            fetch('/CurrencyConverterWS/services/CurrencyConverterService', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'text/xml; charset=utf-8',
+                    'SOAPAction': 'convertCurrency'
+                },
+                body: soapRequest
+            })
+            .then(response => response.text())
+            .then(data => {
+                // Parser la réponse SOAP
+                const parser = new DOMParser();
+                const xmlDoc = parser.parseFromString(data, 'text/xml');
+                const result = xmlDoc.getElementsByTagName('ns:return')[0]?.textContent;
+                
+                if (result && result !== '-1') {
+                    document.getElementById('result').innerHTML = `
+                        <h3>Résultat de la conversion:</h3>
+                        <p>${amount} ${fromCurrency} = <strong>${result} ${toCurrency}</strong></p>
+                    `;
+                } else {
+                    document.getElementById('result').innerHTML = `
+                        <p style="color: red;">Erreur lors de la conversion</p>
+                    `;
+                }
+            })
+            .catch(error => {
+                console.error('Erreur:', error);
+                document.getElementById('result').innerHTML = `
+                    <p style="color: red;">Erreur de connexion au service</p>
+                `;
+            });
+        }
+    </script>
+</body>
+</html>
